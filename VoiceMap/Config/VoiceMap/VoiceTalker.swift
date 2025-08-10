@@ -19,6 +19,10 @@ final class VoiceTalker: NSObject, AVSpeechSynthesizerDelegate, @unchecked Senda
         u.postUtteranceDelay = 0.05
         synth.speak(u)
     }
+    
+    func stop() {
+        synth.stopSpeaking(at: .immediate)
+    }
 
     func speechSynthesizer(_ s: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
         onFinish?()

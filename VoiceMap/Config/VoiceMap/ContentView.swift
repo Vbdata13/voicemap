@@ -34,6 +34,9 @@ struct ContentView: View {
     @State private var transcript: String = ""
     @State private var isListening = false
     @State private var autoLoop = false   // keep listening after we speak
+    @State private var currentAITask: Task<Void, Never>?
+    @State private var isProcessingAI = false
+    @State private var isStopped = false
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -53,6 +56,7 @@ struct ContentView: View {
                         // Set listening state immediately for instant UI feedback
                         isListening = true
                         transcript = ""
+                        isStopped = false
                         
                         // Do minimal setup synchronously (avoid session deactivate/activate cycle)
                         listener.stopListening(cleanSession: false) // Keep session active
@@ -78,13 +82,29 @@ struct ContentView: View {
                     .foregroundColor(.white).clipShape(Capsule())
 
                     Button("Stop") {
+                        let wasProcessingAI = isProcessingAI
+                        
+                        // Mark as stopped to prevent any pending responses
+                        isStopped = true
+                        
+                        // Cancel any ongoing AI request
+                        currentAITask?.cancel()
+                        currentAITask = nil
+                        isProcessingAI = false
+                        
+                        // Stop any ongoing speech
+                        talker.stop()
+                        
                         let text = listener.stopAndFlush()
                         isListening = false
-                        if !text.isEmpty {
+                        
+                        // Only process speech if we weren't already processing an AI request
+                        if !text.isEmpty && !wasProcessingAI {
                             respond(to: text)
-                        } else {
+                        } else if text.isEmpty && !wasProcessingAI {
                             talker.say("I didn't catch that.")
                         }
+                        // If we cancelled an AI request, just stop - don't start a new one
                     }
                     .padding(.horizontal, 16).padding(.vertical, 10)
                     .background(.gray.opacity(0.8)).foregroundColor(.white).clipShape(Capsule())
@@ -105,22 +125,44 @@ struct ContentView: View {
             return
         }
         
+        // Don't start new request if already processing
+        guard !isProcessingAI else { return }
+        
         let request = VoiceRequest(speech: text, location: location)
         
-        // Show processing feedback
-        talker.say("Let me help you with that.")
+        // Cancel any existing AI request
+        currentAITask?.cancel()
         
-        Task {
+        isProcessingAI = true
+        
+        // Show processing feedback (only if not stopped)
+        if !isStopped {
+            talker.say("Let me help you with that.")
+        }
+        
+        currentAITask = Task {
             do {
                 let response = try await aiService.processVoiceRequest(request)
-                await MainActor.run {
-                    talker.say(response)
+                if !Task.isCancelled && !isStopped {
+                    await MainActor.run {
+                        if !isStopped {
+                            talker.say(response)
+                        }
+                        currentAITask = nil
+                        isProcessingAI = false
+                    }
                 }
             } catch {
-                await MainActor.run {
-                    talker.say("Sorry, I couldn't process your request right now. Please try again.")
+                if !Task.isCancelled && !isStopped {
+                    await MainActor.run {
+                        if !isStopped {
+                            talker.say("Sorry, I couldn't process your request right now. Please try again.")
+                        }
+                        currentAITask = nil
+                        isProcessingAI = false
+                    }
+                    print("AI Service error: \(error)")
                 }
-                print("AI Service error: \(error)")
             }
         }
     }
