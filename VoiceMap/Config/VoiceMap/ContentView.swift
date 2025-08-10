@@ -29,6 +29,7 @@ struct ContentView: View {
     @StateObject private var listener = SpeechListener()
     @StateObject private var locationProvider = LocationProvider()
     private let talker = VoiceTalker()
+    private let aiService = AIService()
 
     @State private var transcript: String = ""
     @State private var isListening = false
@@ -106,10 +107,21 @@ struct ContentView: View {
         
         let request = VoiceRequest(speech: text, location: location)
         
-        // For now, just announce the captured data
-        talker.say("Got your request at latitude \(String(format: "%.4f", request.location.latitude)), longitude \(String(format: "%.4f", request.location.longitude)). You said: \(text)")
+        // Show processing feedback
+        talker.say("Let me help you with that.")
         
-        // TODO: Send request to AI backend
-        print("VoiceRequest created: \(request)")
+        Task {
+            do {
+                let response = try await aiService.processVoiceRequest(request)
+                await MainActor.run {
+                    talker.say(response)
+                }
+            } catch {
+                await MainActor.run {
+                    talker.say("Sorry, I couldn't process your request right now. Please try again.")
+                }
+                print("AI Service error: \(error)")
+            }
+        }
     }
 }
