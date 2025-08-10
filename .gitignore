@@ -2,3 +2,7 @@
 xcuserdata/
 DerivedData/
 
+
+# secrets & local assets
+VoiceMap/Config/AppSecrets.swift
+Packages/*.zip
