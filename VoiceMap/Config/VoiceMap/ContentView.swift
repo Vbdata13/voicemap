@@ -135,10 +135,7 @@ struct ContentView: View {
         
         isProcessingAI = true
         
-        // Show processing feedback (only if not stopped)
-        if !isStopped {
-            talker.say("Let me help you with that.")
-        }
+        // No processing feedback - let AI respond naturally
         
         currentAITask = Task {
             do {
