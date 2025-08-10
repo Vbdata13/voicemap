@@ -16,12 +16,45 @@ final class SpeechListener: NSObject, ObservableObject {
     private(set) var latestText: String = ""
 
     // MARK: - Permissions
+    
+    func hasPermissions() -> Bool {
+        return SFSpeechRecognizer.authorizationStatus() == .authorized && 
+               AVAudioSession.sharedInstance().recordPermission == .granted
+    }
 
     func requestPermissions(completion: @escaping (Bool) -> Void) {
-        SFSpeechRecognizer.requestAuthorization { auth in
+        // Check current permissions first to avoid unnecessary delays
+        let currentSpeechAuth = SFSpeechRecognizer.authorizationStatus()
+        let currentMicAuth = AVAudioSession.sharedInstance().recordPermission
+        
+        // If already authorized, return immediately
+        if currentSpeechAuth == .authorized && currentMicAuth == .granted {
+            DispatchQueue.main.async {
+                completion(true)
+            }
+            return
+        }
+        
+        // Only request if needed
+        if currentSpeechAuth != .authorized {
+            SFSpeechRecognizer.requestAuthorization { auth in
+                if currentMicAuth == .granted {
+                    DispatchQueue.main.async {
+                        completion(auth == .authorized)
+                    }
+                } else {
+                    AVAudioSession.sharedInstance().requestRecordPermission { micOK in
+                        DispatchQueue.main.async {
+                            completion(auth == .authorized && micOK)
+                        }
+                    }
+                }
+            }
+        } else {
+            // Speech already authorized, just check mic
             AVAudioSession.sharedInstance().requestRecordPermission { micOK in
                 DispatchQueue.main.async {
-                    completion(auth == .authorized && micOK)
+                    completion(micOK)
                 }
             }
         }
@@ -76,37 +109,41 @@ final class SpeechListener: NSObject, ObservableObject {
 
         // Recognition task
         task = recognizer?.recognitionTask(with: req) { result, error in
-            if let result = result {
-                let text = result.bestTranscription.formattedString
-                self.latestText = text
-                onText(text, false) // partial
+            DispatchQueue.main.async {
+                if let result = result {
+                    let text = result.bestTranscription.formattedString
+                    self.latestText = text
+                    onText(text, false) // partial
 
-                // Silence-based auto-finalization:
-                self.endWorkItem?.cancel()
-                let work = DispatchWorkItem { [weak self] in
-                    guard let self else { return }
-                    onText(text, true)
-                    self.stopListening(cleanSession: false)
-                }
-                self.endWorkItem = work
-                DispatchQueue.main.asyncAfter(deadline: .now() + self.endDelay, execute: work)
-
-                if result.isFinal {
+                    // Silence-based auto-finalization:
                     self.endWorkItem?.cancel()
-                    onText(text, true)
+                    let work = DispatchWorkItem { [weak self] in
+                        guard let self else { return }
+                        DispatchQueue.main.async {
+                            onText(text, true)
+                            self.stopListening(cleanSession: false)
+                        }
+                    }
+                    self.endWorkItem = work
+                    DispatchQueue.main.asyncAfter(deadline: .now() + self.endDelay, execute: work)
+
+                    if result.isFinal {
+                        self.endWorkItem?.cancel()
+                        onText(text, true)
+                        self.stopListening(cleanSession: false)
+                    }
+                }
+
+                if error != nil {
+                    self.endWorkItem?.cancel()
                     self.stopListening(cleanSession: false)
                 }
-            }
-
-            if error != nil {
-                self.endWorkItem?.cancel()
-                self.stopListening(cleanSession: false)
             }
         }
     }
 
     /// Stop streaming; optionally tear down the session (for fully fresh restarts)
-    func stopListening(cleanSession: Bool) {
+    func stopListening(cleanSession: Bool = true) {
         endWorkItem?.cancel(); endWorkItem = nil
         task?.cancel(); task = nil
         request?.endAudio(); request = nil
@@ -134,6 +171,12 @@ final class SpeechListener: NSObject, ObservableObject {
         endWorkItem?.cancel(); endWorkItem = nil
         latestText = ""
         stopListening(cleanSession: true)
+    }
+    
+    /// Clear just the text without stopping session (faster)
+    func clearLatestText() {
+        endWorkItem?.cancel(); endWorkItem = nil
+        latestText = ""
     }
 }
 

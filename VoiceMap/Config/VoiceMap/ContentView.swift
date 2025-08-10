@@ -36,11 +36,28 @@ struct ContentView: View {
 
                 HStack(spacing: 12) {
                     Button(isListening ? "Listening…" : "Start Listening") {
+                        // Set listening state immediately for instant UI feedback
                         isListening = true
                         transcript = ""
-                        listener.reset() // optional: clear last transcript
-                        listener.prewarmAudioSession()
-                        startListening()
+                        
+                        // Do minimal setup synchronously (avoid session deactivate/activate cycle)
+                        listener.stopListening(cleanSession: false) // Keep session active
+                        listener.clearLatestText()
+                        
+                        do {
+                            try listener.startListening { text, isFinal in
+                                DispatchQueue.main.async {
+                                    transcript = text
+                                    if isFinal {
+                                        isListening = false
+                                        respond(to: text)
+                                    }
+                                }
+                            }
+                        } catch {
+                            isListening = false
+                            talker.say("Sorry, I couldn't start listening.")
+                        }
                     }
                     .padding(.horizontal, 16).padding(.vertical, 10)
                     .background(isListening ? .green.opacity(0.9) : .black.opacity(0.85))
@@ -66,29 +83,6 @@ struct ContentView: View {
         }
     } // <-- close the body here
 
-    private func startListening() {
-        if isListening == false { isListening = true } // for safety
-
-        listener.requestPermissions { ok in
-            guard ok else {
-                isListening = false
-                talker.say("I need microphone and speech permissions.")
-                return
-            }
-            do {
-                try listener.startListening { text, isFinal in
-                    transcript = text
-                    if isFinal {
-                        isListening = false
-                        respond(to: text)
-                    }
-                }
-            } catch {
-                isListening = false
-                talker.say("Sorry, I couldn't start listening.")
-            }
-        }
-    }
 
     private func respond(to text: String) {
         // placeholder echo; later we’ll parse and call Google Places
