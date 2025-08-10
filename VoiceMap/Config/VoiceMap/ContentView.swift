@@ -2,6 +2,8 @@ import SwiftUI
 import GoogleMaps
 
 struct GoogleMapView: UIViewRepresentable {
+    @ObservedObject var locationProvider: LocationProvider
+    
     func makeUIView(context: Context) -> GMSMapView {
         let camera = GMSCameraPosition.camera(withLatitude: 37.7749, longitude: -122.4194, zoom: 12)
         let mapView = GMSMapView(frame: .zero)
@@ -10,11 +12,22 @@ struct GoogleMapView: UIViewRepresentable {
         mapView.settings.myLocationButton = true
         return mapView
     }
-    func updateUIView(_ uiView: GMSMapView, context: Context) { }
+    
+    func updateUIView(_ uiView: GMSMapView, context: Context) {
+        if let location = locationProvider.currentLocation {
+            let camera = GMSCameraPosition.camera(
+                withLatitude: location.coordinate.latitude,
+                longitude: location.coordinate.longitude,
+                zoom: 15
+            )
+            uiView.animate(to: camera)
+        }
+    }
 }
 
 struct ContentView: View {
     @StateObject private var listener = SpeechListener()
+    @StateObject private var locationProvider = LocationProvider()
     private let talker = VoiceTalker()
 
     @State private var transcript: String = ""
@@ -23,7 +36,7 @@ struct ContentView: View {
 
     var body: some View {
         ZStack(alignment: .bottom) {
-            GoogleMapView().ignoresSafeArea()
+            GoogleMapView(locationProvider: locationProvider).ignoresSafeArea()
 
             VStack(spacing: 12) {
                 if !transcript.isEmpty {
@@ -80,12 +93,23 @@ struct ContentView: View {
         }
         .onAppear {
             listener.prewarmAudioSession()
+            locationProvider.requestLocation()
         }
     } // <-- close the body here
 
 
     private func respond(to text: String) {
-        // placeholder echo; later we’ll parse and call Google Places
-        talker.say("You said \(text)")
+        guard let location = locationProvider.currentLocation else {
+            talker.say("Location not available. You said \(text)")
+            return
+        }
+        
+        let request = VoiceRequest(speech: text, location: location)
+        
+        // For now, just announce the captured data
+        talker.say("Got your request at latitude \(String(format: "%.4f", request.location.latitude)), longitude \(String(format: "%.4f", request.location.longitude)). You said: \(text)")
+        
+        // TODO: Send request to AI backend
+        print("VoiceRequest created: \(request)")
     }
 }
