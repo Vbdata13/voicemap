@@ -6,6 +6,11 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		C9D9C78C2E4879DF00FCDC58 /* GoogleMaps in Frameworks */ = {isa = PBXBuildFile; productRef = C9D9C78B2E4879DF00FCDC58 /* GoogleMaps */; };
+		C9D9C78E2E487B8300FCDC58 /* AppSecrets.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9D9C78D2E487B8300FCDC58 /* AppSecrets.swift */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		C9104ADC2E48586600C713CC /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -27,6 +32,8 @@
 		C9104ACE2E48586500C713CC /* VoiceMap.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = VoiceMap.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		C9104ADB2E48586600C713CC /* VoiceMapTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = VoiceMapTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		C9104AE52E48586600C713CC /* VoiceMapUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = VoiceMapUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		C9D9C78D2E487B8300FCDC58 /* AppSecrets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSecrets.swift; sourceTree = "<group>"; };
+		C9D9C78F2E48844500FCDC58 /* VoiceMap-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = "VoiceMap-Info.plist"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -52,6 +59,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				C9D9C78C2E4879DF00FCDC58 /* GoogleMaps in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -75,9 +83,11 @@
 		C9104AC52E48586500C713CC = {
 			isa = PBXGroup;
 			children = (
-				C9104AD02E48586500C713CC /* VoiceMap */,
+				C9D9C78F2E48844500FCDC58 /* VoiceMap-Info.plist */,
+				C9D9C7792E4872F500FCDC58 /* Config */,
 				C9104ADE2E48586600C713CC /* VoiceMapTests */,
 				C9104AE82E48586600C713CC /* VoiceMapUITests */,
+				C9D9C78A2E4879DF00FCDC58 /* Frameworks */,
 				C9104ACF2E48586500C713CC /* Products */,
 			);
 			sourceTree = "<group>";
@@ -90,6 +100,22 @@
 				C9104AE52E48586600C713CC /* VoiceMapUITests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		C9D9C7792E4872F500FCDC58 /* Config */ = {
+			isa = PBXGroup;
+			children = (
+				C9D9C78D2E487B8300FCDC58 /* AppSecrets.swift */,
+				C9104AD02E48586500C713CC /* VoiceMap */,
+			);
+			path = Config;
+			sourceTree = "<group>";
+		};
+		C9D9C78A2E4879DF00FCDC58 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -112,6 +138,7 @@
 			);
 			name = VoiceMap;
 			packageProductDependencies = (
+				C9D9C78B2E4879DF00FCDC58 /* GoogleMaps */,
 			);
 			productName = VoiceMap;
 			productReference = C9104ACE2E48586500C713CC /* VoiceMap.app */;
@@ -195,6 +222,9 @@
 			);
 			mainGroup = C9104AC52E48586500C713CC;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				C9D9C76C2E486FE400FCDC58 /* XCRemoteSwiftPackageReference "ios-maps-sdk" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = C9104ACF2E48586500C713CC /* Products */;
 			projectDirPath = "";
@@ -236,6 +266,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				C9D9C78E2E487B8300FCDC58 /* AppSecrets.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -400,6 +431,10 @@
 				DEVELOPMENT_TEAM = 3S56HD984C;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "VoiceMap-Info.plist";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "We use your location to find nearby places";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -428,6 +463,10 @@
 				DEVELOPMENT_TEAM = 3S56HD984C;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "VoiceMap-Info.plist";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "We use your location to find nearby places";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -558,6 +597,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		C9D9C76C2E486FE400FCDC58 /* XCRemoteSwiftPackageReference "ios-maps-sdk" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/googlemaps/ios-maps-sdk";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 10.1.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		C9D9C78B2E4879DF00FCDC58 /* GoogleMaps */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = C9D9C76C2E486FE400FCDC58 /* XCRemoteSwiftPackageReference "ios-maps-sdk" */;
+			productName = GoogleMaps;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = C9104AC62E48586500C713CC /* Project object */;
 }
