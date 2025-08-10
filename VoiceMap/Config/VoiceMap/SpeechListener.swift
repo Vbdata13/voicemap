@@ -7,6 +7,8 @@ final class SpeechListener: NSObject, ObservableObject {
     private let audioEngine = AVAudioEngine()
     private var request: SFSpeechAudioBufferRecognitionRequest?
     private var task: SFSpeechRecognitionTask?
+    private var didCachePermissions = false
+    private var cachedPermissionsOK = false
 
     // silence detection
     private var endWorkItem: DispatchWorkItem?
@@ -18,70 +20,102 @@ final class SpeechListener: NSObject, ObservableObject {
     // MARK: - Permissions
 
     func requestPermissions(completion: @escaping (Bool) -> Void) {
+        // If we already have a decision, return it immediately
+        if didCachePermissions {
+            completion(cachedPermissionsOK)
+            return
+        }
+
+        // If both are already granted, short-circuit
+        if SFSpeechRecognizer.authorizationStatus() == .authorized &&
+            AVAudioSession.sharedInstance().recordPermission == .granted {
+            didCachePermissions = true
+            cachedPermissionsOK = true
+            completion(true)
+            return
+        }
+
+        // Otherwise ask
         SFSpeechRecognizer.requestAuthorization { auth in
             AVAudioSession.sharedInstance().requestRecordPermission { micOK in
+                let ok = (auth == .authorized && micOK)
                 DispatchQueue.main.async {
-                    completion(auth == .authorized && micOK)
+                    self.didCachePermissions = true
+                    self.cachedPermissionsOK = ok
+                    completion(ok)
                 }
             }
         }
     }
+
 
     // MARK: - Session helpers
 
     /// Keep session simple and stable. We also call this in `startListening()`
     func prewarmAudioSession() {
         let s = AVAudioSession.sharedInstance()
-        // Voice chat is low-latency, routes to speaker, and supports AirPods
         try? s.setCategory(.playAndRecord,
                            mode: .voiceChat,
                            options: [.defaultToSpeaker, .allowBluetooth, .allowBluetoothA2DP, .duckOthers])
         try? s.setActive(true, options: .notifyOthersOnDeactivation)
+        audioEngine.prepare()   // <-- this primes the IO so start is instant
     }
 
     // MARK: - Start / Stop
+    private func ensureMicRoute() throws {
+        let s = AVAudioSession.sharedInstance()
+        // Keep the same low-latency voice chat setup we use elsewhere
+        try? s.setCategory(.playAndRecord,
+                           mode: .voiceChat,
+                           options: [.defaultToSpeaker, .allowBluetooth, .allowBluetoothA2DP, .duckOthers])
+        try s.setActive(true, options: []) // make sure session is active now
 
+        // ✅ Guard: if there is no input route, bail with a clean error
+        if !s.isInputAvailable || s.currentRoute.inputs.isEmpty {
+            throw NSError(domain: "Speech", code: -100,
+                          userInfo: [NSLocalizedDescriptionKey: "No microphone input route"])
+        }
+    }
     /// Begin recognition; `onText` is called with (partialText, isFinal)
     func startListening(onText: @escaping (String, Bool) -> Void) throws {
-        guard recognizer?.isAvailable == true else { throw NSError(domain: "Speech", code: -1) }
+        try ensureMicRoute()
+        guard recognizer?.isAvailable == true else {
+            throw NSError(domain: "Speech", code: -1)
+        }
 
-        // Clean any previous run, but keep session active for speed.
+        // don’t fully tear down the session (keeps it warm)
         stopListening(cleanSession: false)
 
-        // Make sure the session is configured/active right now
-        prewarmAudioSession()
-
-        // fresh request every time
+        // fresh request
         let req = SFSpeechAudioBufferRecognitionRequest()
         req.shouldReportPartialResults = true
         if recognizer?.supportsOnDeviceRecognition == true {
-            req.requiresOnDeviceRecognition = true // faster if available
+            req.requiresOnDeviceRecognition = true
         }
         req.taskHint = .dictation
         request = req
-        latestText = ""
 
-        // Feed mic into the request
+        // tap the mic BEFORE starting the engine
         let inputNode = audioEngine.inputNode
+        let format = inputNode.outputFormat(forBus: 0)
         inputNode.removeTap(onBus: 0)
-        // Use nil format to match the hardware route automatically.
-        inputNode.installTap(onBus: 0, bufferSize: 1024, format: nil) { buffer, _ in
+        inputNode.installTap(onBus: 0, bufferSize: 1024, format: format) { buffer, _ in
             self.request?.append(buffer)
         }
 
+        // start engine right away (instant because prewarmed)
         if !audioEngine.isRunning {
             audioEngine.prepare()
             try audioEngine.start()
         }
 
-        // Recognition task
+        // recognition
         task = recognizer?.recognitionTask(with: req) { result, error in
             if let result = result {
                 let text = result.bestTranscription.formattedString
-                self.latestText = text
-                onText(text, false) // partial
+                onText(text, false)  // partial
 
-                // Silence-based auto-finalization:
+                // silence auto-stop
                 self.endWorkItem?.cancel()
                 let work = DispatchWorkItem { [weak self] in
                     guard let self else { return }
