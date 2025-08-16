@@ -28,8 +28,13 @@ struct GoogleMapView: UIViewRepresentable {
 struct ContentView: View {
     @StateObject private var listener = SpeechListener()
     @StateObject private var locationProvider = LocationProvider()
+    @StateObject private var voiceConfig = VoiceConfig.shared
     private let talker = VoiceTalker()
-    private let aiService = AIService()
+    
+    // Voice service changes based on mode
+    private var voiceService: VoiceServiceProtocol {
+        VoiceServiceFactory.createService(mode: voiceConfig.currentMode)
+    }
 
     @State private var transcript: String = ""
     @State private var aiResponse: String = "" // Show AI response even if TTS fails
@@ -44,6 +49,29 @@ struct ContentView: View {
             GoogleMapView(locationProvider: locationProvider).ignoresSafeArea()
 
             VStack(spacing: 12) {
+                // Mode indicator
+                HStack {
+                    Image(systemName: voiceConfig.isRealtimeMode ? "waveform" : "speaker.wave.2")
+                        .foregroundColor(voiceConfig.isRealtimeMode ? .green : .blue)
+                    Text(voiceConfig.currentMode.displayName)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    
+                    Spacer()
+                    
+                    // Mode switcher
+                    Button(voiceConfig.isRealtimeMode ? "Switch to TTS" : "Switch to Realtime") {
+                        let newMode: VoiceMode = voiceConfig.isRealtimeMode ? .tts : .realtime
+                        voiceConfig.setMode(newMode)
+                    }
+                    .font(.caption)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(.ultraThinMaterial)
+                    .clipShape(Capsule())
+                }
+                .padding(.horizontal)
+                
                 if !transcript.isEmpty {
                     Text("You said: \(transcript)")
                         .font(.callout)
@@ -151,20 +179,30 @@ struct ContentView: View {
         
         currentAITask = Task {
             do {
-                let audioResponse = try await aiService.processVoiceRequest(request)
+                let audioResponse = try await voiceService.processVoiceRequest(request)
                 if !Task.isCancelled && !isStopped {
                     await MainActor.run {
                         if !isStopped {
                             aiResponse = audioResponse.text // Show response text in UI
-                            print("🎯 AI Response to speak: \(audioResponse.text)")
+                            print("🎯 [\(voiceConfig.currentMode.rawValue.uppercased())] Response: \(audioResponse.text)")
                             
-                            // Check if we have audio data, otherwise fallback to Apple TTS
-                            if audioResponse.audioData.isEmpty {
-                                print("🔄 Using Apple TTS fallback")
-                                talker.say(audioResponse.text)
+                            // Handle response based on mode
+                            if voiceConfig.isRealtimeMode {
+                                // Realtime mode handles audio streaming internally
+                                if !audioResponse.audioData.isEmpty {
+                                    talker.playAudio(audioResponse.audioData)
+                                } else {
+                                    print("🔄 Realtime mode: audio handled by service")
+                                }
                             } else {
-                                print("🎵 Using OpenAI TTS")
-                                talker.playAudio(audioResponse.audioData)
+                                // TTS mode: check if we have audio data, otherwise fallback to Apple TTS
+                                if audioResponse.audioData.isEmpty {
+                                    print("🔄 Using Apple TTS fallback")
+                                    talker.say(audioResponse.text)
+                                } else {
+                                    print("🎵 Using OpenAI TTS")
+                                    talker.playAudio(audioResponse.audioData)
+                                }
                             }
                         }
                         currentAITask = nil
