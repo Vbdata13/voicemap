@@ -71,6 +71,8 @@ class GooglePlacesService {
     func searchNearby(query: String, location: CLLocation, radius: Int = 5000) async throws -> [PlaceResult] {
         let baseURL = "https://maps.googleapis.com/maps/api/place/nearbysearch/json"
         
+        print("🔍 GooglePlaces searching for: '\(query)' at \(location.coordinate.latitude),\(location.coordinate.longitude) within \(radius)m")
+        
         var components = URLComponents(string: baseURL)!
         components.queryItems = [
             URLQueryItem(name: "keyword", value: query),
@@ -101,6 +103,12 @@ class GooglePlacesService {
         }
         
         let placesResponse = try JSONDecoder().decode(PlacesResponse.self, from: data)
+        
+        print("📍 Places API found \(placesResponse.results.count) results with status: \(placesResponse.status)")
+        for (i, place) in placesResponse.results.prefix(3).enumerated() {
+            let distance = location.distance(from: CLLocation(latitude: place.location.lat, longitude: place.location.lng))
+            print("  \(i+1). \(place.name) - \(String(format: "%.0f", distance))m away")
+        }
         
         if placesResponse.status != "OK" && placesResponse.status != "ZERO_RESULTS" {
             throw NSError(domain: "GooglePlaces", code: 3, userInfo: [NSLocalizedDescriptionKey: "Places API returned status: \(placesResponse.status)"])
@@ -296,7 +304,8 @@ class GooglePlacesService {
             let place = enhancedPlace.basicPlace
             let placeLocation = CLLocation(latitude: place.location.lat, longitude: place.location.lng)
             let distance = userLocation.distance(from: placeLocation)
-            let distanceText = distance < 1000 ? String(format: "%.0fm", distance) : String(format: "%.1fkm", distance/1000)
+            let distanceInMiles = distance * 0.000621371 // Convert meters to miles
+            let distanceText = distanceInMiles < 0.1 ? String(format: "%.0f ft", distance * 3.28084) : String(format: "%.1f mi", distanceInMiles)
             
             result += "\(enhancedPlace.ranking ?? 1). \(place.name)"
             if let vicinity = place.vicinity {
@@ -337,7 +346,8 @@ class GooglePlacesService {
         for (index, place) in places.prefix(5).enumerated() {
             let placeLocation = CLLocation(latitude: place.location.lat, longitude: place.location.lng)
             let distance = userLocation.distance(from: placeLocation)
-            let distanceText = distance < 1000 ? String(format: "%.0fm", distance) : String(format: "%.1fkm", distance/1000)
+            let distanceInMiles = distance * 0.000621371 // Convert meters to miles
+            let distanceText = distanceInMiles < 0.1 ? String(format: "%.0f ft", distance * 3.28084) : String(format: "%.1f mi", distanceInMiles)
             
             result += "\(index + 1). \(place.name)"
             if let vicinity = place.vicinity {

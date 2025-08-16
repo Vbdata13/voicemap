@@ -57,7 +57,7 @@ class AIResponseParser {
         return SearchIntent(
             needsPlacesSearch: needsSearch,
             searchQuery: needsSearch ? extractSearchQuery(from: aiResponse) : nil,
-            radius: 2000,
+            radius: 3000,
             responseText: aiResponse
         )
     }

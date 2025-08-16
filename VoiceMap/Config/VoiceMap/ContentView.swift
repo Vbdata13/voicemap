@@ -151,13 +151,21 @@ struct ContentView: View {
         
         currentAITask = Task {
             do {
-                let response = try await aiService.processVoiceRequest(request)
+                let audioResponse = try await aiService.processVoiceRequest(request)
                 if !Task.isCancelled && !isStopped {
                     await MainActor.run {
                         if !isStopped {
-                            aiResponse = response // Show response in UI
-                            print("🎯 AI Response to speak: \(response)")
-                            talker.say(response)
+                            aiResponse = audioResponse.text // Show response text in UI
+                            print("🎯 AI Response to speak: \(audioResponse.text)")
+                            
+                            // Check if we have audio data, otherwise fallback to Apple TTS
+                            if audioResponse.audioData.isEmpty {
+                                print("🔄 Using Apple TTS fallback")
+                                talker.say(audioResponse.text)
+                            } else {
+                                print("🎵 Using OpenAI TTS")
+                                talker.playAudio(audioResponse.audioData)
+                            }
                         }
                         currentAITask = nil
                         isProcessingAI = false
