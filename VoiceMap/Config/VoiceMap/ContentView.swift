@@ -32,6 +32,7 @@ struct ContentView: View {
     private let aiService = AIService()
 
     @State private var transcript: String = ""
+    @State private var aiResponse: String = "" // Show AI response even if TTS fails
     @State private var isListening = false
     @State private var autoLoop = false   // keep listening after we speak
     @State private var currentAITask: Task<Void, Never>?
@@ -44,11 +45,20 @@ struct ContentView: View {
 
             VStack(spacing: 12) {
                 if !transcript.isEmpty {
-                    Text(transcript)
+                    Text("You said: \(transcript)")
                         .font(.callout)
                         .padding(10)
                         .background(.ultraThinMaterial)
                         .clipShape(RoundedRectangle(cornerRadius: 12))
+                }
+                
+                if !aiResponse.isEmpty {
+                    Text("AI Response: \(aiResponse)")
+                        .font(.callout)
+                        .padding(10)
+                        .background(.blue.opacity(0.2))
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                        .foregroundColor(.black)
                 }
 
                 HStack(spacing: 12) {
@@ -56,6 +66,7 @@ struct ContentView: View {
                         // Set listening state immediately for instant UI feedback
                         isListening = true
                         transcript = ""
+                        aiResponse = "" // Clear previous response
                         isStopped = false
                         
                         // Do minimal setup synchronously (avoid session deactivate/activate cycle)
@@ -108,6 +119,7 @@ struct ContentView: View {
                     }
                     .padding(.horizontal, 16).padding(.vertical, 10)
                     .background(.gray.opacity(0.8)).foregroundColor(.white).clipShape(Capsule())
+                    
                 }
                 .padding(.bottom, 24)
             }
@@ -143,6 +155,8 @@ struct ContentView: View {
                 if !Task.isCancelled && !isStopped {
                     await MainActor.run {
                         if !isStopped {
+                            aiResponse = response // Show response in UI
+                            print("🎯 AI Response to speak: \(response)")
                             talker.say(response)
                         }
                         currentAITask = nil

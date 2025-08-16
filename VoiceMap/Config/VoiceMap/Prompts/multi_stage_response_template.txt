@@ -1,0 +1,7 @@
+User request: "{SPEECH}"
+This was a multi-stage search: find '{SECONDARY_QUERY}' near '{PRIMARY_QUERY}'
+
+Multi-stage results:
+{PLACES_DATA}
+
+Provide a natural response explaining the best options, mentioning both the anchor location and the target business. Keep it conversational and helpful.

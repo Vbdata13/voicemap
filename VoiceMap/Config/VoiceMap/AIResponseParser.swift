@@ -1,5 +1,6 @@
 import Foundation
 
+// Keep original SearchIntent for backward compatibility
 struct SearchIntent: Codable {
     let needsPlacesSearch: Bool
     let searchQuery: String?
@@ -15,6 +16,32 @@ struct SearchIntent: Codable {
 }
 
 class AIResponseParser {
+    
+    // Enhanced parser for complex queries
+    static func parseEnhancedSearchIntent(from aiResponse: String) -> EnhancedSearchIntent {
+        // Try to parse enhanced JSON response from AI
+        if let data = aiResponse.data(using: .utf8),
+           let intent = try? JSONDecoder().decode(EnhancedSearchIntent.self, from: data) {
+            return intent
+        }
+        
+        // Fallback to basic parsing
+        let basicIntent = parseSearchIntent(from: aiResponse)
+        
+        // Convert to enhanced format
+        return EnhancedSearchIntent(
+            needsPlacesSearch: basicIntent.needsPlacesSearch,
+            searchQuery: basicIntent.searchQuery,
+            radius: basicIntent.radius,
+            responseText: basicIntent.responseText,
+            dataStrategy: nil,
+            isMultiStage: false,
+            primaryQuery: nil,
+            secondaryQuery: nil
+        )
+    }
+    
+    // Original parser for backward compatibility
     static func parseSearchIntent(from aiResponse: String) -> SearchIntent {
         // Try to parse JSON response from AI
         if let data = aiResponse.data(using: .utf8),

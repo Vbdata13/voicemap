@@ -109,6 +109,224 @@ class GooglePlacesService {
         return placesResponse.results
     }
     
+    // MARK: - Place Details API
+    
+    func getPlaceDetails(placeId: String) async throws -> PlaceDetails {
+        let baseURL = "https://maps.googleapis.com/maps/api/place/details/json"
+        
+        var components = URLComponents(string: baseURL)!
+        components.queryItems = [
+            URLQueryItem(name: "place_id", value: placeId),
+            URLQueryItem(name: "fields", value: "place_id,name,rating,reviews,formatted_phone_number,website,opening_hours,price_level,photos"),
+            URLQueryItem(name: "key", value: apiKey)
+        ]
+        
+        guard let url = components.url else {
+            throw NSError(domain: "GooglePlaces", code: 1, userInfo: [NSLocalizedDescriptionKey: "Invalid URL for place details"])
+        }
+        
+        print("Place Details API URL: \(url)")
+        
+        let (data, response) = try await session.data(from: url)
+        
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw NSError(domain: "GooglePlaces", code: 2, userInfo: [NSLocalizedDescriptionKey: "No HTTP response"])
+        }
+        
+        print("Place Details API Status: \(httpResponse.statusCode)")
+        
+        guard httpResponse.statusCode == 200 else {
+            if let responseString = String(data: data, encoding: .utf8) {
+                print("Place Details API Error Response: \(responseString)")
+            }
+            throw NSError(domain: "GooglePlaces", code: httpResponse.statusCode, userInfo: [NSLocalizedDescriptionKey: "Place Details API request failed"])
+        }
+        
+        let decoder = JSONDecoder()
+        let placeDetailsResponse = try decoder.decode(PlaceDetailsResponse.self, from: data)
+        
+        if placeDetailsResponse.status != "OK" {
+            throw NSError(domain: "GooglePlaces", code: 3, userInfo: [NSLocalizedDescriptionKey: "Place Details API returned status: \(placeDetailsResponse.status)"])
+        }
+        
+        return placeDetailsResponse.result
+    }
+    
+    // MARK: - Review Analysis
+    
+    func analyzeReviews(placeId: String, keywords: [String], limit: Int = 10) async throws -> ReviewAnalysis {
+        let placeDetails = try await getPlaceDetails(placeId: placeId)
+        
+        let relevantReviews = placeDetails.reviews.prefix(limit)
+        var keywordMatches = 0
+        var relevantTexts: [String] = []
+        var evidence: [String] = []
+        
+        for review in relevantReviews {
+            let reviewText = review.text.lowercased()
+            
+            for keyword in keywords {
+                if reviewText.contains(keyword.lowercased()) {
+                    keywordMatches += 1
+                    relevantTexts.append(review.text)
+                    
+                    // Extract sentence containing keyword for evidence
+                    let sentences = review.text.components(separatedBy: ". ")
+                    for sentence in sentences {
+                        if sentence.lowercased().contains(keyword.lowercased()) {
+                            evidence.append("\"\(sentence.trimmingCharacters(in: .whitespacesAndNewlines))\"")
+                            break
+                        }
+                    }
+                    break
+                }
+            }
+        }
+        
+        // Calculate scores
+        let totalReviews = Double(relevantReviews.count)
+        let matchPercentage = totalReviews > 0 ? Double(keywordMatches) / totalReviews : 0.0
+        let confidenceScore = min(1.0, matchPercentage * 2.0) // Scale confidence
+        let attributeScore = matchPercentage
+        
+        return ReviewAnalysis(
+            placeId: placeId,
+            keywordMatches: keywordMatches,
+            sentimentScore: 0.5, // Placeholder - could implement sentiment analysis
+            confidenceScore: confidenceScore,
+            relevantReviews: Array(relevantTexts.prefix(3)), // Top 3 relevant reviews
+            attributeScore: attributeScore,
+            evidence: Array(evidence.prefix(3)) // Top 3 evidence quotes
+        )
+    }
+    
+    // MARK: - Intelligent Search
+    
+    func intelligentSearch(strategy: DataStrategy, location: CLLocation, radius: Int = 5000) async throws -> [EnhancedPlaceResult] {
+        var enhancedResults: [EnhancedPlaceResult] = []
+        
+        // Step 1: Basic nearby search
+        let searchQuery = strategy.searchTerms.joined(separator: " OR ")
+        let basicPlaces = try await searchNearby(query: searchQuery, location: location, radius: radius)
+        
+        print("🔍 Found \(basicPlaces.count) basic places for intelligent search")
+        
+        // Step 2: Enhance with detailed analysis if required
+        for (index, place) in basicPlaces.enumerated() {
+            var reviewAnalysis: ReviewAnalysis?
+            var attributeScores: [String: Double] = [:]
+            var confidenceScore: Double = 0.5
+            
+            // Check if detailed analysis is needed
+            if strategy.apiCallsNeeded.contains(.reviewsAnalysis),
+               let analysisConfig = strategy.analysisRequired {
+                
+                do {
+                    reviewAnalysis = try await analyzeReviews(
+                        placeId: place.placeId,
+                        keywords: analysisConfig.keywords,
+                        limit: analysisConfig.reviewLimit ?? 10
+                    )
+                    
+                    confidenceScore = reviewAnalysis?.confidenceScore ?? 0.5
+                    
+                    if let attrScore = reviewAnalysis?.attributeScore {
+                        attributeScores[analysisConfig.sentimentFocus ?? "relevance"] = attrScore
+                    }
+                    
+                    print("📊 Analyzed reviews for \(place.name): confidence \(String(format: "%.2f", confidenceScore))")
+                    
+                } catch {
+                    print("⚠️ Failed to analyze reviews for \(place.name): \(error)")
+                    // Continue with basic info
+                }
+            }
+            
+            let enhancedPlace = EnhancedPlaceResult(
+                basicPlace: place,
+                reviewAnalysis: reviewAnalysis,
+                attributeScores: attributeScores.isEmpty ? nil : attributeScores,
+                confidenceScore: confidenceScore,
+                ranking: index + 1
+            )
+            
+            enhancedResults.append(enhancedPlace)
+        }
+        
+        // Step 3: Sort by confidence/relevance if analysis was performed
+        if strategy.apiCallsNeeded.contains(.reviewsAnalysis) {
+            enhancedResults.sort { $0.confidenceScore > $1.confidenceScore }
+            
+            // Update rankings after sorting
+            for (index, _) in enhancedResults.enumerated() {
+                enhancedResults[index] = EnhancedPlaceResult(
+                    basicPlace: enhancedResults[index].basicPlace,
+                    reviewAnalysis: enhancedResults[index].reviewAnalysis,
+                    attributeScores: enhancedResults[index].attributeScores,
+                    confidenceScore: enhancedResults[index].confidenceScore,
+                    ranking: index + 1
+                )
+            }
+        }
+        
+        return enhancedResults
+    }
+    
+    // MARK: - Enhanced Formatting
+    
+    func formatEnhancedPlacesForAI(places: [EnhancedPlaceResult], userLocation: CLLocation, strategy: DataStrategy) -> String {
+        if places.isEmpty {
+            return "No places found for this search."
+        }
+        
+        var result = "Found \(places.count) places"
+        
+        // Add analysis summary if complex search
+        if strategy.complexity != .low {
+            let analyzedCount = places.filter { $0.reviewAnalysis != nil }.count
+            if analyzedCount > 0 {
+                result += " (analyzed \(analyzedCount) with review data)"
+            }
+        }
+        result += ":\n"
+        
+        let displayCount = strategy.responseFormat == .detailed ? 3 : 5
+        
+        for enhancedPlace in places.prefix(displayCount) {
+            let place = enhancedPlace.basicPlace
+            let placeLocation = CLLocation(latitude: place.location.lat, longitude: place.location.lng)
+            let distance = userLocation.distance(from: placeLocation)
+            let distanceText = distance < 1000 ? String(format: "%.0fm", distance) : String(format: "%.1fkm", distance/1000)
+            
+            result += "\(enhancedPlace.ranking ?? 1). \(place.name)"
+            if let vicinity = place.vicinity {
+                result += " at \(vicinity)"
+            }
+            result += " - \(distanceText) away"
+            
+            if let rating = place.rating {
+                result += ", rated \(rating) stars"
+            }
+            
+            // Add analysis insights
+            if let reviewAnalysis = enhancedPlace.reviewAnalysis {
+                result += " (confidence: \(String(format: "%.0f", reviewAnalysis.confidenceScore * 100))%"
+                
+                if !reviewAnalysis.evidence.isEmpty {
+                    result += ", reviews mention: \(reviewAnalysis.evidence.first!)"
+                }
+                result += ")"
+            }
+            
+            if let isOpen = place.isOpen {
+                result += isOpen ? " (open now)" : " (closed now)"
+            }
+            result += "\n"
+        }
+        
+        return result
+    }
+    
     func formatPlacesForAI(places: [PlaceResult], userLocation: CLLocation) -> String {
         if places.isEmpty {
             return "No places found for this search."
@@ -137,4 +355,11 @@ class GooglePlacesService {
         
         return result
     }
+}
+
+// MARK: - Additional Response Structures
+
+struct PlaceDetailsResponse: Codable {
+    let result: PlaceDetails
+    let status: String
 }

@@ -1,0 +1,9 @@
+User request: "{SPEECH}"
+Location: {LATITUDE}, {LONGITUDE}
+
+REAL PLACES DATA FROM GOOGLE PLACES API:
+{PLACES_DATA}
+
+CRITICAL: Only use the places listed above. Do NOT mention any places not in this list. Do NOT make up or guess any business names, addresses, or distances.
+
+Respond naturally about the closest place(s) from the real data above. Use the exact names, distances, and details provided.
