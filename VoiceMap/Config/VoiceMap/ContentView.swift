@@ -31,10 +31,8 @@ struct ContentView: View {
     @StateObject private var voiceConfig = VoiceConfig.shared
     private let talker = VoiceTalker()
     
-    // Voice service changes based on mode
-    private var voiceService: VoiceServiceProtocol {
-        VoiceServiceFactory.createService(mode: voiceConfig.currentMode)
-    }
+    // Voice service - stored property to avoid recreation
+    @State private var voiceService: VoiceServiceProtocol = VoiceServiceFactory.createService(mode: .tts)
 
     @State private var transcript: String = ""
     @State private var aiResponse: String = "" // Show AI response even if TTS fails
@@ -60,15 +58,30 @@ struct ContentView: View {
                     Spacer()
                     
                     // Mode switcher
-                    Button(voiceConfig.isRealtimeMode ? "Switch to TTS" : "Switch to Realtime") {
-                        let newMode: VoiceMode = voiceConfig.isRealtimeMode ? .tts : .realtime
-                        voiceConfig.setMode(newMode)
+                    Menu {
+                        Button("TTS Mode (Stable)") {
+                            voiceService.disconnect()
+                            voiceConfig.setMode(.tts)
+                            voiceService = VoiceServiceFactory.createService(mode: .tts)
+                        }
+                        Button("Realtime Mode (Direct)") {
+                            voiceService.disconnect()
+                            voiceConfig.setMode(.realtime)
+                            voiceService = VoiceServiceFactory.createService(mode: .realtime)
+                        }
+                        Button("LiveKit Mode (Optimized)") {
+                            voiceService.disconnect()
+                            voiceConfig.setMode(.livekit)
+                            voiceService = VoiceServiceFactory.createService(mode: .livekit)
+                        }
+                    } label: {
+                        Text("Switch Mode")
+                            .font(.caption)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(.ultraThinMaterial)
+                            .clipShape(Capsule())
                     }
-                    .font(.caption)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(.ultraThinMaterial)
-                    .clipShape(Capsule())
                 }
                 .padding(.horizontal)
                 
@@ -90,63 +103,33 @@ struct ContentView: View {
                 }
 
                 HStack(spacing: 12) {
-                    Button(isListening ? "Listening…" : "Start Listening") {
-                        // Set listening state immediately for instant UI feedback
-                        isListening = true
-                        transcript = ""
-                        aiResponse = "" // Clear previous response
-                        isStopped = false
-                        
-                        // Do minimal setup synchronously (avoid session deactivate/activate cycle)
-                        listener.stopListening(cleanSession: false) // Keep session active
-                        listener.clearLatestText()
-                        
-                        do {
-                            try listener.startListening { text, isFinal in
-                                DispatchQueue.main.async {
-                                    transcript = text
-                                    if isFinal {
-                                        isListening = false
-                                        respond(to: text)
-                                    }
-                                }
+                    if voiceConfig.isRealtimeMode {
+                        // Realtime mode: Direct voice service connection
+                        Button(isListening ? "🎙️ Conversation Active" : "Start Conversation") {
+                            if isListening {
+                                stopRealtimeListening()
+                            } else {
+                                startRealtimeListening()
                             }
-                        } catch {
-                            isListening = false
-                            talker.say("Sorry, I couldn't start listening.")
                         }
-                    }
-                    .padding(.horizontal, 16).padding(.vertical, 10)
-                    .background(isListening ? .green.opacity(0.9) : .black.opacity(0.85))
-                    .foregroundColor(.white).clipShape(Capsule())
+                        .padding(.horizontal, 16).padding(.vertical, 10)
+                        .background(isListening ? .green.opacity(0.9) : .blue.opacity(0.85))
+                        .foregroundColor(.white).clipShape(Capsule())
+                    } else {
+                        // TTS mode: Traditional speech-to-text then process
+                        Button(isListening ? "Listening…" : "Start Listening") {
+                            startTTSListening()
+                        }
+                        .padding(.horizontal, 16).padding(.vertical, 10)
+                        .background(isListening ? .green.opacity(0.9) : .black.opacity(0.85))
+                        .foregroundColor(.white).clipShape(Capsule())
 
-                    Button("Stop") {
-                        let wasProcessingAI = isProcessingAI
-                        
-                        // Mark as stopped to prevent any pending responses
-                        isStopped = true
-                        
-                        // Cancel any ongoing AI request
-                        currentAITask?.cancel()
-                        currentAITask = nil
-                        isProcessingAI = false
-                        
-                        // Stop any ongoing speech
-                        talker.stop()
-                        
-                        let text = listener.stopAndFlush()
-                        isListening = false
-                        
-                        // Only process speech if we weren't already processing an AI request
-                        if !text.isEmpty && !wasProcessingAI {
-                            respond(to: text)
-                        } else if text.isEmpty && !wasProcessingAI {
-                            talker.say("I didn't catch that.")
+                        Button("Stop") {
+                            stopTTSListening()
                         }
-                        // If we cancelled an AI request, just stop - don't start a new one
+                        .padding(.horizontal, 16).padding(.vertical, 10)
+                        .background(.gray.opacity(0.8)).foregroundColor(.white).clipShape(Capsule())
                     }
-                    .padding(.horizontal, 16).padding(.vertical, 10)
-                    .background(.gray.opacity(0.8)).foregroundColor(.white).clipShape(Capsule())
                     
                 }
                 .padding(.bottom, 24)
@@ -158,6 +141,103 @@ struct ContentView: View {
         }
     } // <-- close the body here
 
+    // MARK: - Mode-Specific Listening Methods
+    
+    private func startTTSListening() {
+        // Set listening state immediately for instant UI feedback
+        isListening = true
+        transcript = ""
+        aiResponse = "" // Clear previous response
+        isStopped = false
+        
+        // Do minimal setup synchronously (avoid session deactivate/activate cycle)
+        listener.stopListening(cleanSession: false) // Keep session active
+        listener.clearLatestText()
+        
+        do {
+            try listener.startListening { text, isFinal in
+                DispatchQueue.main.async {
+                    transcript = text
+                    if isFinal {
+                        isListening = false
+                        respond(to: text)
+                    }
+                }
+            }
+        } catch {
+            isListening = false
+            talker.say("Sorry, I couldn't start listening.")
+        }
+    }
+    
+    private func stopTTSListening() {
+        let wasProcessingAI = isProcessingAI
+        
+        // Mark as stopped to prevent any pending responses
+        isStopped = true
+        
+        // Cancel any ongoing AI request
+        currentAITask?.cancel()
+        currentAITask = nil
+        isProcessingAI = false
+        
+        // Stop any ongoing speech
+        talker.stop()
+        
+        let text = listener.stopAndFlush()
+        isListening = false
+        
+        // Only process speech if we weren't already processing an AI request
+        if !text.isEmpty && !wasProcessingAI {
+            respond(to: text)
+        } else if text.isEmpty && !wasProcessingAI {
+            talker.say("I didn't catch that.")
+        }
+        // If we cancelled an AI request, just stop - don't start a new one
+    }
+    
+    private func startRealtimeListening() {
+        isListening = true
+        transcript = ""
+        aiResponse = ""
+        isStopped = false
+        
+        // Set up delegate for realtime service
+        if let realtimeService = voiceService as? RealtimeAIService {
+            realtimeService.delegate = self
+        }
+        
+        Task {
+            do {
+                try await voiceService.startListening()
+                await MainActor.run {
+                    // For realtime mode, show continuous listening state
+                    transcript = "🎙️ Connected to OpenAI Realtime API"
+                    aiResponse = "Voice conversation active. Speak naturally!"
+                }
+            } catch {
+                await MainActor.run {
+                    isListening = false
+                    talker.say("Sorry, I couldn't start the realtime conversation.")
+                    print("❌ Realtime error: \(error)")
+                }
+            }
+        }
+    }
+    
+    private func stopRealtimeListening() {
+        isStopped = true
+        isListening = false
+        
+        // Disconnect realtime service
+        voiceService.disconnect()
+        
+        // Stop any ongoing speech
+        talker.stop()
+        
+        transcript = "Conversation ended"
+        aiResponse = "Tap 'Start Conversation' to begin a new realtime session"
+    }
 
     private func respond(to text: String) {
         guard let location = locationProvider.currentLocation else {
@@ -222,5 +302,38 @@ struct ContentView: View {
                 }
             }
         }
+    }
+}
+
+// MARK: - VoiceServiceDelegate
+
+extension ContentView: VoiceServiceDelegate {
+    func voiceServiceDidStartSpeaking() {
+        print("🎙️ Voice service started speaking")
+    }
+    
+    func voiceServiceDidStopSpeaking() {
+        print("🔇 Voice service stopped speaking")
+    }
+    
+    func voiceServiceDidReceiveResponse(_ response: VoiceResponse) {
+        // Update UI with real-time responses from OpenAI
+        if !response.text.isEmpty {
+            transcript = response.text
+        }
+        
+        // Handle audio data if present
+        if let audioData = response.audioData, !audioData.isEmpty {
+            talker.playAudio(audioData)
+        }
+        
+        print("📱 UI updated with response: \(response.text)")
+    }
+    
+    func voiceServiceDidEncounterError(_ error: Error) {
+        isListening = false
+        aiResponse = "Error: \(error.localizedDescription)"
+        talker.say("Sorry, there was an error with the voice service.")
+        print("❌ Voice service error: \(error)")
     }
 }

@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		C9C6DF002E56C386002ED161 /* LiveKit in Frameworks */ = {isa = PBXBuildFile; productRef = C9C6DEFF2E56C386002ED161 /* LiveKit */; };
 		C9D9C78C2E4879DF00FCDC58 /* GoogleMaps in Frameworks */ = {isa = PBXBuildFile; productRef = C9D9C78B2E4879DF00FCDC58 /* GoogleMaps */; };
 		C9D9C78E2E487B8300FCDC58 /* AppSecrets.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9D9C78D2E487B8300FCDC58 /* AppSecrets.swift */; };
 /* End PBXBuildFile section */
@@ -60,6 +61,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				C9D9C78C2E4879DF00FCDC58 /* GoogleMaps in Frameworks */,
+				C9C6DF002E56C386002ED161 /* LiveKit in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -139,6 +141,7 @@
 			name = VoiceMap;
 			packageProductDependencies = (
 				C9D9C78B2E4879DF00FCDC58 /* GoogleMaps */,
+				C9C6DEFF2E56C386002ED161 /* LiveKit */,
 			);
 			productName = VoiceMap;
 			productReference = C9104ACE2E48586500C713CC /* VoiceMap.app */;
@@ -224,6 +227,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				C9D9C76C2E486FE400FCDC58 /* XCRemoteSwiftPackageReference "ios-maps-sdk" */,
+				C9C6DEFE2E56C386002ED161 /* XCRemoteSwiftPackageReference "client-sdk-swift" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = C9104ACF2E48586500C713CC /* Products */;
@@ -599,6 +603,14 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
+		C9C6DEFE2E56C386002ED161 /* XCRemoteSwiftPackageReference "client-sdk-swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/livekit/client-sdk-swift";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.6.1;
+			};
+		};
 		C9D9C76C2E486FE400FCDC58 /* XCRemoteSwiftPackageReference "ios-maps-sdk" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/googlemaps/ios-maps-sdk";
@@ -610,6 +622,11 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		C9C6DEFF2E56C386002ED161 /* LiveKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = C9C6DEFE2E56C386002ED161 /* XCRemoteSwiftPackageReference "client-sdk-swift" */;
+			productName = LiveKit;
+		};
 		C9D9C78B2E4879DF00FCDC58 /* GoogleMaps */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = C9D9C76C2E486FE400FCDC58 /* XCRemoteSwiftPackageReference "ios-maps-sdk" */;

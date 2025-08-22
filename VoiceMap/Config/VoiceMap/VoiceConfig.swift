@@ -3,6 +3,7 @@ import Foundation
 enum VoiceMode: String, CaseIterable {
     case tts = "tts"
     case realtime = "realtime"
+    case livekit = "livekit"
     
     var displayName: String {
         switch self {
@@ -10,6 +11,8 @@ enum VoiceMode: String, CaseIterable {
             return "TTS Mode (Stable)"
         case .realtime:
             return "Realtime Mode (Interactive)"
+        case .livekit:
+            return "LiveKit Mode (Optimized)"
         }
     }
     
@@ -19,6 +22,8 @@ enum VoiceMode: String, CaseIterable {
             return "High-quality text-to-speech with OpenAI voices"
         case .realtime:
             return "Real-time conversation with voice interruption"
+        case .livekit:
+            return "Optimized real-time via LiveKit + OpenAI"
         }
     }
 }

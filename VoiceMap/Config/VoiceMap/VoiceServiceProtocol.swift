@@ -5,6 +5,7 @@ protocol VoiceServiceProtocol {
     func startListening() async throws
     func stopListening()
     func setVoice(_ voice: String)
+    func disconnect()
 }
 
 // Voice response that works for both TTS and Realtime
@@ -21,7 +22,7 @@ struct VoiceResponse {
 }
 
 // Delegate for real-time voice events
-protocol VoiceServiceDelegate: AnyObject {
+protocol VoiceServiceDelegate {
     func voiceServiceDidStartSpeaking()
     func voiceServiceDidStopSpeaking()
     func voiceServiceDidReceiveResponse(_ response: VoiceResponse)

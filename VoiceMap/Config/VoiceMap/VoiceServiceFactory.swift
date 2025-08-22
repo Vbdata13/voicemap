@@ -7,6 +7,8 @@ class VoiceServiceFactory {
             return TTSAIService()
         case .realtime:
             return RealtimeAIService()
+        case .livekit:
+            return LiveKitVoiceService()
         }
     }
 }
@@ -35,5 +37,10 @@ class TTSAIService: VoiceServiceProtocol {
             aiService.selectedVoice = openAIVoice
             print("🎵 TTS voice set to: \(openAIVoice.displayName)")
         }
+    }
+    
+    func disconnect() {
+        // TTS mode doesn't need to disconnect
+        print("🔌 TTS mode: No persistent connection to disconnect")
     }
 }
